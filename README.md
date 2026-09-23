@@ -33,48 +33,74 @@ Unlike traditional RAG systems that output unverified text summaries, ExplainX e
 
 ## 🏗️ Architecture
 
+![ExplainX Architecture Diagram](assets/architecture_diagram.png)
+
 ```mermaid
 flowchart TD
-    subgraph Frontend ["Frontend (React Router / Vite)"]
-        UI[Minimalist Monochrome UI]
-        AV[AttributionViewer Canvas]
-        CP[Chat Panel & Citation Pills]
+    subgraph STAGE1 ["Stage 1: Dual Input Ingestion"]
+        direction LR
+        subgraph DOCS ["Documents (PDF / Scanned Reports / PPTX)"]
+            D1["Diagrams (Schematics)"]
+            D2["Charts (Bar / Line / Pie)"]
+            D3["Tables (2D Grids)"]
+            D4["Paragraphs (Text)"]
+        end
+        subgraph VIDS ["Video Media (MP4 / MOV / YouTube)"]
+            V1["Audio Speech Stream"]
+            V2["Visual Video Stream"]
+        end
     end
 
-    subgraph Backend ["Backend (FastAPI Engine)"]
-        API[FastAPI Server - Port 8000]
-        AUTH[JWT Authentication & Bcrypt]
-        SESS[Session Manager & State Store]
+    subgraph STAGE2 ["Stage 2: Multimodal Layout Extraction & Spatial Tracking"]
+        direction TB
+        E1["Diagram Captioner\n(Visual Crop + Descriptions)"]
+        E2["Chart De-renderer\n(Visual Crop + VLM Data)"]
+        E3["Table Structure Engine\n(Markdown Table + Cell JSON)"]
+        E4["Layout Text Parser\n(Reading Order + BBoxes)"]
+        E5["Speech-to-Text Engine\n(Groq Whisper v3 Turbo Word TS)"]
+        E6["Frame Visual Engine\n(YOLO Object Detection + OCR Text)"]
     end
 
-    subgraph Pipelines ["Multimodal Ingestion Pipelines"]
-        DOC_P[PDF/PPTX Pipeline: PyMuPDF + Spatial Tables]
-        VID_P[Video Pipeline: yt-dlp + Groq Whisper + YOLO + OCR]
+    subgraph STORE ["Central Store: Unified Multimodal Knowledge Store (ChromaDB)"]
+        direction TB
+        K1["Dense & Sparse Embeddings\n(BGE-M3 / all-MiniLM-L6-v2 + BM25 Lexical)"]
+        K2["Attribution Metadata Anchor\n(Page x0,y0,x1,y1 BBoxes | Video mm:ss Timestamps)"]
     end
 
-    subgraph Storage ["Vector & Metadata Stores"]
-        CHROMA_DOC[(ChromaDB: Document Collections)]
-        CHROMA_VID[(ChromaDB: Video Collections)]
-        JSON_STORE[(Resilient Metadata Store)]
+    subgraph STAGE3 ["Stage 3: Grounded Multimodal RAG & Reasoning"]
+        direction TB
+        Q["User Question"] --> R["Hybrid Cross-Modal Retriever\n(Dense + BM25 + Modality Router)"]
+        R --> CP["Multimodal Context Pack\n(Tables + Charts + Transcripts + Source IDs)"]
+        CP --> LLM["Multimodal VLM Reasoner\n(Groq Llama-3.3-70B / Qwen-2.5 / Gemini)"]
     end
 
-    subgraph AI ["AI Inference Engines"]
-        GROQ_LLM[Groq LPU: Llama-3.3-70B / Qwen-2.5]
-        GROQ_STT[Groq Whisper v3 Turbo]
+    subgraph STAGE4 ["Stage 4: Anti-Hallucination & Verification Guardrail (Judging Rubric)"]
+        direction TB
+        G["Sufficiency & Claim Verification Gate"]
+        G -- "No Evidence" --> REF["Graceful Refusal\n'Information not found in uploaded sources. Refusing to guess.'"]
+        G -- "Verified Evidence" --> ANS["Grounded Synthesis\n(Cross-checks claims & numbers against source chunks)"]
     end
 
-    UI --> API
-    API --> AUTH
-    API --> SESS
-    API --> DOC_P
-    API --> VID_P
-    DOC_P --> CHROMA_DOC
-    VID_P --> GROQ_STT --> CHROMA_VID
-    API --> GROQ_LLM
-    CHROMA_DOC --> GROQ_LLM
-    CHROMA_VID --> GROQ_LLM
-    GROQ_LLM --> CP
-    CP --> AV
+    subgraph STAGE5 ["Stage 5: Visual Source Attribution UI (Judging Rubric)"]
+        direction TB
+        UI_ANS["Answer with Dual Interactive Citations\n'Cloud grew 28% [P.3 Table 1], confirmed at [02:14 Video]'"]
+        UI_DOC["Document Attribution\n(Auto-scrolls to Page 3 & draws glowing BBox)"]
+        UI_VID["Video Attribution\n(Auto-seeks video player to 02:14 timestamp)"]
+    end
+
+    D1 --> E1
+    D2 --> E2
+    D3 --> E3
+    D4 --> E4
+    V1 --> E5
+    V2 --> E6
+
+    E1 & E2 & E3 & E4 & E5 & E6 --> STORE
+    STORE --> R
+    LLM --> G
+    ANS --> UI_ANS
+    UI_ANS --> UI_DOC
+    UI_ANS --> UI_VID
 ```
 
 ---
